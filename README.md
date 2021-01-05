@@ -1,12 +1,10 @@
 # piston-telegram
-A Telegram bot for Piston
+A Telegram bot for [Piston](http://github.com)
 
-(NOTE: I wrote it quickly. It breaks often, though it will be fixed)
 ## Running it
-Create a bot following https://core.telegram.org/bots#3-how-do-i-create-a-bot
-
-After that, you can compile and run it:
+1) Create a bot following [this guide](https://core.telegram.org/bots#3-how-do-i-create-a-bot)
+2) After that, add your token into config.json.
+3) Finally, you're ready to run it:
 ```bash
-go build .
-TOKEN=(your bot token) ./piston-telegram
+go run .
 ```
