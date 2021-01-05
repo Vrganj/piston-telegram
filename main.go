@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"time"
 
 	telebot "gopkg.in/tucnak/telebot.v2"
@@ -10,7 +11,13 @@ func main() {
 	config, err := loadConfig()
 
 	if err != nil {
-		panic(err)
+		log.Println(err)
+		return
+	}
+
+	if config.Token == "" {
+		log.Println("Provide a token in config.json")
+		return
 	}
 
 	bot, err := telebot.NewBot(telebot.Settings{
@@ -19,7 +26,8 @@ func main() {
 	})
 
 	if err != nil {
-		panic(err)
+		log.Println(err)
+		return
 	}
 
 	bot.Handle("/run", func(message *telebot.Message) {
