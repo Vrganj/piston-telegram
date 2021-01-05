@@ -78,5 +78,5 @@ func execute(message *telebot.Message, bot *telebot.Bot, language string, source
 		bot.Send(message.Sender, "Something had gone wrong deserializing the execute response")
 	}
 
-	bot.Send(message.Sender, responseBody.Output)
+	bot.Send(message.Sender, "```" + responseBody.Output + "```")
 }
