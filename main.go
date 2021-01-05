@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -19,23 +20,26 @@ type Language struct {
 	Version string `json:"version"`
 }
 
-// ExecutionRequest request
-type ExecutionRequest struct {
+// ExecuteRequest request
+type ExecuteRequest struct {
 	Language string   `json:"language"`
 	Source   string   `json:"source"`
 	Args     []string `json:"args"`
 }
 
-// OkExecutionResponse response
-type OkExecutionResponse struct {
+// OkExecuteResponse - Success response
+type OkExecuteResponse struct {
 	Ran      bool   `json:"ran"`
 	Language string `json:"language"`
 	Version  string `json:"version"`
 	Output   string `json:"output"`
 }
 
-// ErrExecutionResponse TODO
-type ErrExecutionResponse struct{}
+// ErrExecuteResponse - Error response
+type ErrExecuteResponse struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
 
 func getLanguages() []Language {
 	response, err := http.Get("https://emkc.org/api/v1/piston/versions")
@@ -58,84 +62,121 @@ func getLanguages() []Language {
 	return languages
 }
 
-func main() {
-	languages := getLanguages()
+func getLanguage(text string) string {
+	index := strings.Index(text, " ")
 
-	bot, err := telebot.NewBot(telebot.Settings{
+	if index == -1 {
+		return strings.ToLower(text)
+	}
+
+	return strings.ToLower(text[:index])
+}
+
+func getSource(text string) string {
+	index := strings.Index(text, " ")
+
+	if index == -1 {
+		return ""
+	}
+
+	return text[index+1:]
+}
+
+func validateLanguage(language string) bool {
+	for _, l := range languages {
+		if l.Name == language {
+			return true
+		}
+	}
+
+	return false
+}
+
+func execute(message *telebot.Message, language string, source string) {
+	requestBody := ExecuteRequest{
+		Language: language,
+		Source:   source,
+		Args:     []string{},
+	}
+
+	requestBodyBuffer, _ := json.Marshal(requestBody)
+
+	response, err := http.Post("https://emkc.org/api/v1/piston/execute", "application/json", bytes.NewBuffer(requestBodyBuffer))
+
+	if err != nil {
+		// HANDLE THIS BETTER
+		log.Fatal(err)
+	}
+
+	responseBodyBuffer, err := ioutil.ReadAll(response.Body)
+	response.Body.Close()
+
+	if err != nil {
+		// HANDLE THIS BETTER
+		log.Fatal(err)
+	}
+
+	if response.StatusCode != 200 {
+		responseBody := ErrExecuteResponse{}
+		// HANDLE THIS
+		json.Unmarshal(responseBodyBuffer, &responseBody)
+
+		bot.Send(message.Sender, fmt.Sprintf("Error %s: %s", responseBody.Code, responseBody.Message))
+
+		return
+	}
+
+	responseBody := OkExecuteResponse{}
+	// HANDLE THIS
+	json.Unmarshal(responseBodyBuffer, &responseBody)
+
+	bot.Send(message.Sender, responseBody.Output)
+}
+
+func runCommand(message *telebot.Message) {
+	text := strings.TrimSpace(message.Text[4:])
+	language := getLanguage(text)
+	source := getSource(text)
+
+	fmt.Println(text)
+
+	if language == "" {
+		bot.Send(message.Sender, "Provide a language")
+		return
+	}
+
+	if !validateLanguage(language) {
+		bot.Send(message.Sender, "Invalid language provided")
+		return
+	}
+
+	if source == "" {
+		bot.Send(message.Sender, "Provide source code")
+		return
+	}
+
+	execute(message, language, source)
+}
+
+var bot *telebot.Bot
+var languages []Language
+
+func main() {
+	languages = getLanguages()
+
+	b, err := telebot.NewBot(telebot.Settings{
 		Token:  os.Getenv("TOKEN"),
 		Poller: &telebot.LongPoller{Timeout: 5 * time.Second},
 	})
+
+	bot = b
 
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
 
-	bot.Handle("/run", func(message *telebot.Message) {
-		// Really fragile, needs fixing
-		// and needs to tell the user if
-		// the input was wrong
-
-		text := message.Text[4:]
-
-		if len(text) == 0 {
-			return
-		}
-
-		text = text[1:]
-
-		language := strings.ToLower(text[:strings.Index(text, " ")])
-		matched := false
-
-		for _, l := range languages {
-			if l.Name == language {
-				matched = true
-				break
-			}
-		}
-
-		if !matched {
-			return
-		}
-
-		requestBody := ExecutionRequest{
-			Language: language,
-			Source:   text[strings.Index(text, " ")+1:],
-			Args:     []string{},
-		}
-
-		requestBodyBytes, err := json.Marshal(requestBody)
-
-		if err != nil {
-			log.Fatal(err)
-			return
-		}
-
-		response, err := http.Post("https://emkc.org/api/v1/piston/execute", "application/json", bytes.NewBuffer(requestBodyBytes))
-
-		if err != nil {
-			log.Fatal(err)
-			return
-		}
-
-		responseBytes, err := ioutil.ReadAll(response.Body)
-
-		if err != nil {
-			log.Fatal(err)
-			return
-		}
-
-		var executionResponse OkExecutionResponse
-
-		if json.Unmarshal(responseBytes, &executionResponse) != nil {
-			log.Fatal(err)
-			return
-		}
-
-		bot.Send(message.Sender, executionResponse.Output)
-
-		response.Body.Close()
-	})
+	bot.Handle("/run", runCommand)
 
 	bot.Start()
 }
