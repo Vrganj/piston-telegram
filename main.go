@@ -142,11 +142,38 @@ func runCommand(message *telebot.Message) {
 	language := getLanguage(text)
 	source := getSource(text)
 
-	fmt.Println(text)
-
 	if language == "" {
 		bot.Send(message.Sender, "Provide a language")
 		return
+	}
+
+	switch language {
+	case "bf":
+		language = "brainfuck"
+	case "c++":
+		language = "cpp"
+	case "cs", "c#":
+		language = "csharp"
+	case "denojs", "denots":
+		language = "deno"
+	case "el", "elisp":
+		language = "emacs"
+	case "exs":
+		language = "elixir"
+	case "hs":
+		language = "haskell"
+	case "asm":
+		language = "nasm"
+	case "asm64":
+		language = "nasm64"
+	case "js", "javascript":
+		language = "node"
+	case "jl":
+		language = "julia"
+	case "python":
+		language = "python3"
+	case "ts":
+		language = "typescript"
 	}
 
 	if !validateLanguage(language) {
