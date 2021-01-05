@@ -104,31 +104,35 @@ func execute(message *telebot.Message, language string, source string) {
 	response, err := http.Post("https://emkc.org/api/v1/piston/execute", "application/json", bytes.NewBuffer(requestBodyBuffer))
 
 	if err != nil {
-		// HANDLE THIS BETTER
-		log.Fatal(err)
+		bot.Send(message.Sender, "Something had gone wrong sending the request")
+		return
 	}
 
 	responseBodyBuffer, err := ioutil.ReadAll(response.Body)
 	response.Body.Close()
 
 	if err != nil {
-		// HANDLE THIS BETTER
-		log.Fatal(err)
+		bot.Send(message.Sender, "Something had gone wrong reading the response body")
+		return
 	}
 
 	if response.StatusCode != 200 {
 		responseBody := ErrExecuteResponse{}
-		// HANDLE THIS
-		json.Unmarshal(responseBodyBuffer, &responseBody)
+
+		if json.Unmarshal(responseBodyBuffer, &responseBody) != nil {
+			bot.Send(message.Sender, "Something had gone wrong deserializing the execute error response")
+			return
+		}
 
 		bot.Send(message.Sender, fmt.Sprintf("Error %s: %s", responseBody.Code, responseBody.Message))
-
 		return
 	}
 
 	responseBody := OkExecuteResponse{}
-	// HANDLE THIS
-	json.Unmarshal(responseBodyBuffer, &responseBody)
+
+	if json.Unmarshal(responseBodyBuffer, &responseBody) != nil {
+		bot.Send(message.Sender, "Something had gone wrong deserializing the execute response")
+	}
 
 	bot.Send(message.Sender, responseBody.Output)
 }
@@ -164,6 +168,7 @@ var languages []Language
 func main() {
 	languages = getLanguages()
 
+	// TODO: Find a better way to assign bot
 	b, err := telebot.NewBot(telebot.Settings{
 		Token:  os.Getenv("TOKEN"),
 		Poller: &telebot.LongPoller{Timeout: 5 * time.Second},
